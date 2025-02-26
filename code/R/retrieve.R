@@ -201,7 +201,7 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
     metadatax <- metadatax %>%
       mutate_all(iconv, to = "ASCII//TRANSLIT") %>%
       mutate(Source = urltools::domain(link),
-             Date = as.Date(Date, format = "%m/%d/%y"),
+             Date = as.Date(Date, format = "%m/%d/%Y"),
              Page = linkx,
              Audio = audio,
              Files = other) %>%
