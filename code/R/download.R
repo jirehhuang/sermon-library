@@ -8,21 +8,13 @@
 #' @return None.
 #' @example
 
-download_sermons <- function(catalog_dir = file.path(getwd(), "metadata"),
+download_sermons <- function(catalog_dir = file.path(getwd(), "catalog"),
                              sermons_dir = file.path(getwd(), "sermons"),
                              bool_continue = TRUE,
                              bool_compress = FALSE,
                              n_cores = 1){
   
-  ## Load necessary package(s)
-  require(dplyr)
-  
-  
-  ## Retreive metadata tables
-  csv_files <- list.files(catalog_dir, pattern = "\\.csv", full.names = TRUE)
-  metadf <- do.call(dplyr::bind_rows, lapply(csv_files, read.csv)) %>%
-    filter(!duplicated(.))  # Retain only unique rows
-  
+  metadf <- compile_catalog(catalog_dir = catalog_dir)
   
   ## Download sermons to sermon directory one by one
   cli::cli_alert_info("downloading files for {nrow(metadf)} titles", 
