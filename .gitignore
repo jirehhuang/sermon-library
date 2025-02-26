@@ -4,3 +4,6 @@
 .Ruserdata
 *.Rproj
 scratch*
+secret*
+log*
+README.html
