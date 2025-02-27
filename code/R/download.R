@@ -28,23 +28,46 @@ download_sermons <- function(catalog_dir = file.path(getwd(), "catalog"),
     cli::cli_alert("downloading {i}. {mdi$Title}", .envir = environment())
     
     filename <- file.path(sermons_dir, sprintf("%s.%s", mdi$Name, tools::file_ext(mdi$Audio)))
+    partname <- file.path(sermons_dir, sprintf("%s.part", mdi$Name))
     
     ## Download if haven't already
-    if (!file.exists(filename) &&
-        !basename(filename) %in% list.files(sermons_dir)){
+    if (!any(file.exists(partname, filename))){
       
       # download.file(mdi$audio, filename)  # TODO: doesn't seem to work (corrupted)
-      cmd <- sprintf('curl %s --output "%s"', mdi$Audio, filename)
-      cli::cli_alert("executing `{cmd}`", .envir = environment())
-      system(cmd)
+      cmd <- sprintf('curl %s --output "%s"', mdi$Audio, partname)
+      cli::cli_alert("downloading by executing `{cmd}`", .envir = environment())
+      # output <- system(cmd, intern = TRUE)  # TODO: suppressed in multicore execution
       
-    } else if (bool_continue){
+      ## Hack to capture output of system() in order to verify 
+      ## successful execution even in multicore execution
+      output <- capture.output({
+        system_output <- system(cmd, intern = TRUE)
+        cat(system_output, "\n")
+      })
+      if (length(output)){
+        
+        file.rename(from = partname,
+                    to = filename)
+      }
+    } else if (bool_continue &&
+               !file.exists(filename) && file.exists(partname)){
       
       ## Attempt to continue interrupted download
-      cmd <- sprintf('curl -C - %s --output "%s"', mdi$Audio, filename)
-      cli::cli_alert("executing `{cmd}`", .envir = environment())
-      system(cmd)
-    }
+      cmd <- sprintf('curl -C - %s --output "%s"', mdi$Audio, partname)
+      cli::cli_alert("reattempting download by executing `{cmd}`", .envir = environment())
+      
+      ## Hack to capture output of system() in order to verify 
+      ## successful execution even in multicore execution
+      output <- capture.output({
+        system_output <- system(cmd, intern = TRUE)
+        cat(system_output, "\n")
+      })
+      if (length(output)){
+        
+        file.rename(from = partname,
+                    to = filename)
+      }
+    } 
     
     ## Compress audio file
     if (bool_compress){
