@@ -90,13 +90,13 @@ def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_ra
 
 def main():
     ## Acquire inputs
-    queue_dir = input("Enter queue directory to monitor: ").strip() or "../../sermons"
+    queue_dir = input("Enter queue directory to monitor: ").strip() or os.path.abspath(os.path.join('..', '..', 'sermons'))
     if (queue_dir == "browse"):
         queue_dir = askdirectory(title="Select Folder")
     
     default_transcribed_dir = f" (leave blank for default: {os.path.join(queue_dir, 'transcribed')})"
     default_transcribed_dir = ""  # Deactivate showing default
-    transcribed_dir = input(f"Enter transcribed directory{default_transcribed_dir}: ").strip() or os.path.join(queue_dir, "transcribed")
+    transcribed_dir = input(f"Enter transcribed directory{default_transcribed_dir}: ").strip() or os.path.abspath(os.path.join(queue_dir, "transcribed"))
     if (transcribed_dir == "browse"):
         transcribed_dir = askdirectory(title="Select Folder")
     
