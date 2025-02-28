@@ -55,9 +55,8 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
 
 
 def rename_and_move_transcriptions(queue_dir, transcribed_dir, file_name, ext):
-    """Rename transcribed files and move them to a timestamped folder."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-    target_folder = os.path.join(transcribed_dir, f"{file_name} - {timestamp}")
+    """Rename transcribed files and move them to a folder."""
+    target_folder = os.path.join(transcribed_dir, f"{file_name}")
     os.makedirs(target_folder, exist_ok=True)
     
     for file in os.listdir(queue_dir):
