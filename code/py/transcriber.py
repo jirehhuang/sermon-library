@@ -87,17 +87,27 @@ def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_ra
             process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_rate)
 
 
+def get_dir(default_dir: str="browse", label: str="", bool_msg: bool=False):
+    """Get input directory."""
+    if default_dir != "browse":
+        default_dir = os.path.abspath(default_dir)
+    if bool_msg:
+        default_msg = f" (leave blank for default: {default_dir})"
+    else:
+        default_msg = ""  # Deactivate showing default
+    if len(label) > 0:
+        label = label + " "
+    dir = input(f"Enter {label}directory{default_msg}: ").strip() or default_dir
+    if dir == "browse":
+        dir = askdirectory(title=f"Select Folder")
+    return dir
+
+
 def main():
+    """Continuously check for audio files and process them."""
     ## Acquire inputs
-    queue_dir = input("Enter queue directory to monitor: ").strip() or os.path.abspath(os.path.join('..', '..', 'sermons'))
-    if (queue_dir == "browse"):
-        queue_dir = askdirectory(title="Select Folder")
-    
-    default_transcribed_dir = f" (leave blank for default: {os.path.join(queue_dir, 'transcribed')})"
-    default_transcribed_dir = ""  # Deactivate showing default
-    transcribed_dir = input(f"Enter transcribed directory{default_transcribed_dir}: ").strip() or os.path.abspath(os.path.join(queue_dir, "transcribed"))
-    if (transcribed_dir == "browse"):
-        transcribed_dir = askdirectory(title="Select Folder")
+    queue_dir = get_dir(os.path.abspath(os.path.join('..', '..', 'sermons')), "queue")
+    transcribed_dir = get_dir(os.path.join(queue_dir, "transcribed"), "transcribed")
     
     interval = int(input("Enter interval (in seconds) for checking new files: ").strip() or 10)
     bool_compress = input("Compress audio files? (y/n): ").strip().lower() == "y" or True
