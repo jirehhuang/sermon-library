@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 import subprocess
+import soundfile as sf
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 from datetime import datetime, timedelta
@@ -18,10 +19,10 @@ def delete_empty_folders(directory, exceptions=None):
                 print(f"[INFO] Deleted empty folder: {folder_path}")
 
 
-def delete_whispering_files(queue_dir):
-    """Delete all files in queue_dir that start with 'whispering'."""
+def delete_transcribing_files(queue_dir):
+    """Delete all files in queue_dir that start with 'transcribing'."""
     for file in os.listdir(queue_dir):
-        if file.startswith("whispering"):
+        if file.startswith("transcribing"):
             os.remove(os.path.join(queue_dir, file))
             print(f"[INFO] Deleted file: {file}")
 
@@ -30,13 +31,21 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
     """Process an audio file by compressing/copying and transcribing it."""
     file_path = os.path.join(queue_dir, file)
     file_name, ext = os.path.splitext(file)
-    dest_file = os.path.join(queue_dir, f"whispering{ext}")
+    dest_file = os.path.join(queue_dir, f"transcribing{ext}")
     
     try:
         if bool_compress:
-            cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}"'
-            subprocess.run(cmd, shell=True, check=True)
-            print(f"[INFO] Compressed {file} -> {dest_file}")
+            if os.path.splitext(file)[1] == "mp3":
+                _, sr0 = sf.read(file_path)
+            else:
+                sr0 = (2**8) * 1e3
+            if sr0 > sample_rate:
+                cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}"'
+                subprocess.run(cmd, shell=True, check=True)
+                print(f"[INFO] Compressed {file} -> {dest_file}")
+            else:
+                shutil.copy(file_path, dest_file)
+                print(f"[INFO] Copied {file} -> {dest_file}")
         else:
             shutil.copy(file_path, dest_file)
             print(f"[INFO] Copied {file} -> {dest_file}")
@@ -60,7 +69,7 @@ def rename_and_move_transcriptions(queue_dir, transcribed_dir, file_name, ext):
     os.makedirs(target_folder, exist_ok=True)
     
     for file in os.listdir(queue_dir):
-        if file.startswith("whispering"):
+        if file.startswith("transcribing"):
             new_name = f"{file_name}{os.path.splitext(file)[1]}"
             shutil.move(os.path.join(queue_dir, file), os.path.join(target_folder, new_name))
             print(f"[INFO] Moved {file} -> {target_folder}/{new_name}")
@@ -81,7 +90,7 @@ def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_ra
             continue
         
         delete_empty_folders(transcribed_dir, exceptions=[os.path.join(queue_dir, "transcribed")])
-        delete_whispering_files(queue_dir)
+        delete_transcribing_files(queue_dir)
         
         for file in audio_files:
             process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_rate)
