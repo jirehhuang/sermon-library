@@ -3,9 +3,34 @@ import shutil
 import time
 import subprocess
 import soundfile as sf
+import pynvml
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 from datetime import datetime, timedelta
+
+
+def get_gpu_memory():
+    # Initialize the NVML library
+    pynvml.nvmlInit()
+
+    # Get the number of GPUs in the system
+    device_count = pynvml.nvmlDeviceGetCount()
+
+    # Store the GPU memory information
+    gpu_memory = {}
+
+    for i in range(device_count):
+        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+
+        # Convert memory from bytes to GB
+        total_memory_gb = memory_info.total / (1024 ** 3)
+        gpu_memory[i] = total_memory_gb
+
+    # Shutdown the NVML library
+    pynvml.nvmlShutdown()
+
+    return gpu_memory
 
 
 def delete_empty_folders(directory, exceptions=None):
