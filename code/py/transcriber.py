@@ -56,31 +56,42 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
     """Process an audio file by compressing/copying and transcribing it."""
     file_path = os.path.join(queue_dir, file)
     file_name, ext = os.path.splitext(file)
-    dest_file = os.path.join(queue_dir, f"transcribing{ext}")
+    dest_dir = os.path.join(transcribed_dir, file_name)
+    dest_file = os.path.join(dest_dir, f"transcribing{ext}")
     
     try:
-        if bool_compress:
-            if os.path.splitext(file)[1] == "mp3":
-                _, sr0 = sf.read(file_path)
-            else:
-                sr0 = (2**8) * 1e3
-            if sr0 > sample_rate:
-                cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}"'
-                subprocess.run(cmd, shell=True, check=True)
-                print(f"[INFO] Compressed {file} -> {dest_file}")
+        ## Ensure destination directory is either empty or only contains audio file named transcribing
+        if os.path.exists(dest_dir):
+            if len(os.listdir(dest_dir)) > 1 or not os.listdir(dest_dir) == [os.path.basename(dest_file)]:
+                raise Exception(f"Error: Folder '{dest_dir}' exists and has contents")
+        else:
+            os.makedirs(dest_dir)
+
+        ## Compress and/or copy
+        if os.path.basename(dest_file) not in os.listdir(dest_dir):
+            if bool_compress:
+                if os.path.splitext(file)[1] == "mp3":
+                    _, sr0 = sf.read(file_path)
+                else:
+                    sr0 = 48 * 1e3
+                if sr0 > sample_rate:
+                    cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}" -hide_banner -loglevel error'
+                    subprocess.run(cmd, shell=True, check=True)
+                    print(f"[INFO] Compressed {file} -> {dest_file}")
+                else:
+                    shutil.copy(file_path, dest_file)
+                    print(f"[INFO] Copied {file} -> {dest_file}")
             else:
                 shutil.copy(file_path, dest_file)
                 print(f"[INFO] Copied {file} -> {dest_file}")
-        else:
-            shutil.copy(file_path, dest_file)
-            print(f"[INFO] Copied {file} -> {dest_file}")
         
         ## Transcription command
-        transcribe_cmd = f'whisper "{dest_file}" --model base --language en --verbose True'
+        print(f"[INFO] Transcribing {dest_file}")
+        transcribe_cmd = f'whisper "{dest_file}" --output_dir "{dest_dir}" --device cuda --model medium.en --language en --verbose True'
         subprocess.run(transcribe_cmd, shell=True, check=True)
         print(f"[INFO] Transcription completed for: {dest_file}")
-        
-        rename_and_move_transcriptions(queue_dir, transcribed_dir, file_name, ext)
+
+        rename_and_move_transcriptions(dest_dir, transcribed_dir, file_name, ext)
         
         os.remove(file_path)
         print(f"[INFO] Deleted original audio file: {file}")
