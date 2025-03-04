@@ -4,9 +4,12 @@ import time
 import subprocess
 import soundfile as sf
 import pynvml
+import json
+from inputimeout import inputimeout, TimeoutOccurred
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 from datetime import datetime, timedelta
+from faster_whisper import WhisperModel
 
 
 def get_gpu_memory():
@@ -63,7 +66,7 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
         ## Ensure destination directory is either empty or only contains audio file named transcribing
         if os.path.exists(dest_dir):
             if len(os.listdir(dest_dir)) > 1 or not os.listdir(dest_dir) == [os.path.basename(dest_file)]:
-                raise Exception(f"Error: Folder '{dest_dir}' exists and has contents")
+                raise Exception(f"[ERROR] Folder '{dest_dir}' exists and has contents")
         else:
             os.makedirs(dest_dir)
 
@@ -87,8 +90,42 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
         
         ## Transcription command
         print(f"[INFO] Transcribing {dest_file}")
-        transcribe_cmd = f'whisper "{dest_file}" --output_dir "{dest_dir}" --device cuda --model medium.en --language en --verbose True'
-        subprocess.run(transcribe_cmd, shell=True, check=True)
+        model_size = "large-v3-turbo"
+        compute_type="float16"
+        model = WhisperModel(model_size, device="cuda", compute_type=compute_type)
+        segments, info = model.transcribe(dest_file)
+
+        print("[INFO] Detected language '%s' with probability %f" % (info.language, info.language_probability))
+        lang_prob_threshold = 0.9
+        if info.language_probability < lang_prob_threshold:
+            try:
+                bool_cont = inputimeout(prompt=f"Language probability is below {lang_prob_threshold}. Do you wish to continue? (y/n) ", timeout=10) or "y"
+                if bool_cont == "n":
+                    exit()
+            except TimeoutOccurred:
+                print("Timeout occurred. No input received.")
+
+        def iterate_segment(segment):
+            print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+            return segment.__dict__
+
+        segments = [iterate_segment(segment) for segment in segments]
+        text = "".join([segment["text"] for segment in segments]).strip()
+        result = {
+            "text": text,
+            "segments": segments,
+            "language": info.language,
+            "language_probability": info.language_probability
+        }
+        json_result = open(os.path.join(dest_dir, "result.json"), "w")
+        json.dump(result, json_result, default=lambda o: "<not serializable>")
+        json_result.close()
+
+        ## Write info
+        json_info = open(os.path.join(dest_dir, "info.json"), "w")
+        json.dump(info.__dict__, json_info, default=lambda o: "<not serializable>")
+        json_info.close()
+
         print(f"[INFO] Transcription completed for: {dest_file}")
 
         rename_and_move_transcriptions(dest_dir, transcribed_dir, file_name, ext)
