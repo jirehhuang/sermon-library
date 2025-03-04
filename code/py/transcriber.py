@@ -65,7 +65,8 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
     try:
         ## Ensure destination directory is either empty or only contains audio file named transcribing
         if os.path.exists(dest_dir):
-            if len(os.listdir(dest_dir)) > 1 or not os.listdir(dest_dir) == [os.path.basename(dest_file)]:
+            dest_ls = [file for file in os.listdir(dest_dir) if file != "desktop.ini"]
+            if len(dest_ls) > 1 and not dest_ls == [os.path.basename(dest_file)]:
                 raise Exception(f"[ERROR] Folder '{dest_dir}' exists and has contents")
         else:
             os.makedirs(dest_dir)
@@ -164,6 +165,8 @@ def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_ra
         
         delete_empty_folders(transcribed_dir, exceptions=[os.path.join(queue_dir, "transcribed")])
         delete_transcribing_files(queue_dir)
+        
+        print(f"[INFO] Transcribing {len(audio_files)} audio files")
         
         for file in audio_files:
             process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_rate)
