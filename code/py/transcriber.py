@@ -5,6 +5,7 @@ import subprocess
 import soundfile as sf
 import pynvml
 import json
+from mutagen.mp3 import MP3
 from inputimeout import inputimeout, TimeoutOccurred
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
@@ -55,12 +56,12 @@ def delete_transcribing_files(queue_dir):
             print(f"[INFO] Deleted file: {file}")
 
 
-def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_rate):
+def process_audio_file(file, queue_dir, transcribed_dir, sample_rate):
     """Process an audio file by compressing/copying and transcribing it."""
     file_path = os.path.join(queue_dir, file)
     file_name, ext = os.path.splitext(file)
     dest_dir = os.path.join(transcribed_dir, file_name)
-    dest_file = os.path.join(dest_dir, f"transcribing{ext}")
+    dest_file = os.path.join(dest_dir, f"transcribing.mp3")
     
     try:
         ## Ensure destination directory is either empty or only contains audio file named transcribing
@@ -73,20 +74,17 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
 
         ## Compress and/or copy
         if os.path.basename(dest_file) not in os.listdir(dest_dir):
-            if bool_compress:
-                if os.path.splitext(file)[1] == "mp3":
-                    _, sr0 = sf.read(file_path)
-                else:
-                    sr0 = 48 * 1e3
-                if sr0 > sample_rate:
-                    cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}" -hide_banner -loglevel error'
-                    subprocess.run(cmd, shell=True, check=True)
-                    print(f"[INFO] Compressed {file} -> {dest_file}")
-                else:
-                    shutil.copy(file_path, dest_file)
-                    print(f"[INFO] Copied {file} -> {dest_file}")
+            ## soundfile can only check mp3 files for current sample rate
+            if os.path.splitext(file)[1] == "mp3":
+                _, sr0 = sf.read(file_path)
             else:
-                shutil.copy(file_path, dest_file)
+                sr0 = 48 * 1e3  # Always compress non-mp3 files
+            if sr0 > sample_rate:
+                cmd = f'ffmpeg -nostdin -threads 0 -i "{file_path}" -ac 1 -ar {sample_rate} "{dest_file}" -hide_banner -loglevel error'
+                subprocess.run(cmd, shell=True, check=True)
+                print(f"[INFO] Compressed {file} -> {dest_file}")
+            else:
+                shutil.copy(file_path, dest_file)  # Copy mp3 files with acceptable sample rate
                 print(f"[INFO] Copied {file} -> {dest_file}")
         
         ## Transcription command
@@ -110,7 +108,8 @@ def process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_r
             print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
             return segment.__dict__
 
-        segments = [iterate_segment(segment) for segment in segments]
+        audio_dur = MP3(dest_file).info.length
+        segments = [iterate_segment(segment) for segment in segments if segment.start < audio_dur]
         text = "".join([segment["text"] for segment in segments]).strip()
         result = {
             "text": text,
@@ -149,7 +148,7 @@ def rename_and_move_transcriptions(queue_dir, transcribed_dir, file_name, ext):
             print(f"[INFO] Moved {file} -> {target_folder}/{new_name}")
 
 
-def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_rate):
+def monitor_queue(queue_dir, transcribed_dir, interval, sample_rate):
     """Continuously check for audio files and process them."""
     os.chdir(queue_dir)
     queue_dir = os.getcwd();  # Refresh for if relative path provided
@@ -169,10 +168,10 @@ def monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_ra
         print(f"[INFO] Transcribing {len(audio_files)} audio files")
         
         for file in audio_files:
-            process_audio_file(file, queue_dir, transcribed_dir, bool_compress, sample_rate)
+            process_audio_file(file, queue_dir, transcribed_dir, sample_rate)
 
 
-def get_dir(default_dir: str="browse", label: str="", bool_msg: bool=False):
+def get_dir(default_dir: str="browse", label: str="", timeout: int=10, bool_msg: bool=False):
     """Get input directory."""
     if default_dir != "browse":
         default_dir = os.path.abspath(default_dir)
@@ -199,13 +198,12 @@ def main():
     transcribed_dir = get_dir(os.path.join(queue_dir, "transcribed"), "transcribed")
     
     interval = int(input("Enter interval (in seconds) for checking new files: ").strip() or 10)
-    bool_compress = input("Compress audio files? (y/n): ").strip().lower() == "y" or True
     sample_rate = 16000  # Default sample rate
     
     os.makedirs(transcribed_dir, exist_ok=True)
     print(f"[INFO] Monitoring queue at: {queue_dir}, Transcribed files will be saved to: {transcribed_dir}")
     
-    monitor_queue(queue_dir, transcribed_dir, interval, bool_compress, sample_rate)
+    monitor_queue(queue_dir, transcribed_dir, interval, sample_rate)
 
 
 if __name__ == "__main__":
