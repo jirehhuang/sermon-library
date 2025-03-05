@@ -51,8 +51,12 @@ def trim_audio(input_file, output_file, start_time, stop_time):
 
 def play_audio(file_path, speed: float=1):
     """Play an audio file."""
-    data, samplerate = sf.read(file_path)
-    sd.play(data, samplerate * speed)
+    try:
+        data, samplerate = sf.read(file_path)
+        sd.play(data, samplerate * speed)
+        return True
+    except Exception as e:
+        return False
 
 
 def launch_audio(file_path):
@@ -147,7 +151,7 @@ def qc_transcribed(transcribed_dir, qc_dir):
         folder_path = os.path.join(transcribed_dir, folder_name)
         if not os.path.isdir(folder_path) or folder_name == "qc":
             continue
-        json_file = os.path.join(folder_path, f"{folder_name}.json")
+        json_file = os.path.join(folder_path, f"result.json")
         if os.path.exists(json_file):
             qc1_list.append(json2segments(folder_name, json_file))
             print(f"Added segments from {json_file}")
@@ -195,16 +199,20 @@ def qc_transcribed(transcribed_dir, qc_dir):
         
         trim_audio(audio_file, temp_clip, row["start"], row["end"])
         
-        print(f"Segment {index+1} of {len(qc)}: ({round(row['avg_logprob'], 3)}) [{row['start']}s to {row['end']}s] in {row['name']}")
+        print(f"Segment {index+1} of {len(qc)}: ({round(row['avg_logprob'], 3)}) [{row['start']}s -> {row['end']}s] in {row['name']}")
         print(f"Transcription: {row['text']}")
         if len(row["label"]):
             sim = "%0.2f" % SequenceMatcher(None, row["text"], row["label"]).ratio()
             print(f"Label ({sim}):  {row['label']}")
-        play_audio(temp_clip, 1.5)  # Play sped up
+        
+        bool_played = play_audio(temp_clip, 1.5)  # Play sped up
 
         actions = "accept/replay/context/label/inaudible/save/skip/quit"
         while True:
-            action = input(f"Action ({actions}): ") or "accept"
+            if (bool_played):
+                action = input(f"Action ({actions}): ") or "accept"
+            else:
+                action = "inaudible"
             
             if action.lower() == "" or "accept".startswith(action.lower()):  # Default accept
                 if len(row["label"]) and row["label"] != row["text"]:
@@ -240,7 +248,7 @@ def qc_transcribed(transcribed_dir, qc_dir):
                            max(row["end"], next_row["end"]))
                 launch_audio(temp_context)
             elif "inaudible".startswith(action.lower()):
-                qc.at[index, "label"] = "[inaudible]"
+                qc.at[index, "label"] = "<inaudible>"
                 uid_audio = os.path.join(qc_dir, f"{row['uid']}.{temp_clip.split('.')[-1]}")
                 if not os.path.exists(uid_audio):
                     os.rename(temp_clip, uid_audio)
