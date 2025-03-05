@@ -182,7 +182,11 @@ def get_dir(default_dir: str="browse", label: str="", bool_msg: bool=False):
         default_msg = ""  # Deactivate showing default
     if len(label) > 0:
         label = label + " "
-    dir = input(f"Enter {label}directory{default_msg}: ").strip() or default_dir
+    try:
+        dir = inputimeout(prompt=f"Enter {label}directory{default_msg}: ", timeout=timeout).strip() or default_dir
+    except TimeoutOccurred:
+        dir = default_dir
+        print(f"[WARNING] Timeout occurred; defaulting to {default_dir}")
     if dir == "browse":
         dir = askdirectory(title=f"Select Folder")
     return dir
