@@ -124,7 +124,7 @@ def print_row_label(row):
             text = "[Labeled]  " + row["label"]
         else:
             text = "[Original] " + row["text"]
-        print(f"{row['id']}. ({round(row['avg_logprob'], 3)}) [{row['start']}s to {row['end']}s]: {text}")
+        print(f"{row['id']}. ({round(row['avg_logprob'], 3)}) [{'{:.3f}'.format(round(row['start'], 3))}s to {'{:.3f}'.format(round(row['end'], 3))}s]: {text}")
 
 
 def qc_transcribed(transcribed_dir, qc_dir):
@@ -199,7 +199,7 @@ def qc_transcribed(transcribed_dir, qc_dir):
         
         trim_audio(audio_file, temp_clip, row["start"], row["end"])
         
-        print(f"Segment {index+1} of {len(qc)}: ({round(row['avg_logprob'], 3)}) [{row['start']}s -> {row['end']}s] in {row['name']}")
+        print(f"Segment {index+1} of {len(qc)}: ({'{:.3f}'.format(round(row['avg_logprob'], 3))}) [{'{:.3f}'.format(round(row['start'], 3))}s -> {'{:.3f}'.format(round(row['end'], 3))}s] in {row['name']}")
         print(f"Transcription: {row['text']}")
         if len(row["label"]):
             sim = "%0.2f" % SequenceMatcher(None, row["text"], row["label"]).ratio()
