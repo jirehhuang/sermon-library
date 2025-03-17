@@ -194,7 +194,7 @@ def get_dir(default_dir: str="browse", label: str="", timeout: int=10, bool_msg:
 def main():
     """Continuously check for audio files and process them."""
     ## Acquire inputs
-    queue_dir = get_dir(os.path.abspath(os.path.join('..', '..', 'sermons')), "queue")
+    queue_dir = get_dir("browse", "queue")
     transcribed_dir = get_dir(os.path.join(queue_dir, "transcribed"), "transcribed")
     
     interval = int(input("Enter interval (in seconds) for checking new files: ").strip() or 10)
