@@ -59,8 +59,10 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
                     link, 
                     ifelse(grepl("\\?", link), "&", "?"),
                     "%g")
-  } else if (!grepl("page=%g", link)){
     
+  } else if (!grepl("page=%g|page=%s", link)){
+    
+    ## If page= exists but as a number, replace page=1 (for example) with page=%g
     link <- gsub("page=\\d+", "page=%g", link)
   }
   
@@ -76,7 +78,7 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
     cli::cli_alert("reading page {i}", .envir = environment())
     
     ## Retrieve links to each sermon title from HTL elements
-    title_linksi <- rvest::read_html(sprintf(link, i)) %>%
+    title_linksi <- rvest::read_html(gsub("page=%g|page=%s", sprintf("page=%g", i), link)) %>%
       rvest::html_elements(css = ".listing-title") %>%
       rvest::html_children() %>%
       rvest::html_attr("href")
@@ -227,5 +229,5 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
   ## Write metadata data.frame as a .csv file
   write.csv(x = metadf, file = filename, row.names = TRUE)
   
-  return(invisible(TRUE))
+  return(metadf)
 }
