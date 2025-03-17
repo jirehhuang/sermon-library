@@ -25,13 +25,11 @@ compile_catalog <- function(catalog_dir = file.path(getwd(), "catalog")){
 #' 
 #' @param link Character value specifying link to scrape.
 #' @param filename Target directory to save metadata data.frame as a .csv file.
-#' @param bool_continue Whether or not to attempt to continue interrupted downloads using `curl -C -`.
 #' @param n_cores Numeric value specifying number of cores.
 #' @return None.
 
 gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
                             filename = file.path(getwd(), "catalog", sprintf("gracechurch_org.csv")),
-                            # bool_continue = TRUE,
                             n_cores = 1){
   
   require(dplyr)
