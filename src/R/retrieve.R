@@ -44,9 +44,9 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
   }
   
   ## Check link
-  if (!grepl("gracechurch\\.org/sermons", link)){
+  if (!grepl("gracechurch\\.org/sermons|gracechurch\\.org/teaching", link)){
     
-    cli::cli_abort("link must begin with `gracechurch.org/sermons`")
+    cli::cli_abort("link must begin with `gracechurch.org/sermons` or `gracechurch.org/teaching`")
   }
   
   ## Retrieve URL domain
