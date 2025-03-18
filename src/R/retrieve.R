@@ -77,7 +77,7 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
     
     cli::cli_alert("reading page {i}", .envir = environment())
     
-    ## Retrieve links to each sermon title from HTL elements
+    ## Retrieve links to each sermon title from HTML elements
     title_linksi <- rvest::read_html(gsub("page=%g|page=%s", sprintf("page=%g", i), link)) %>%
       rvest::html_elements(css = ".listing-title") %>%
       rvest::html_children() %>%
@@ -222,6 +222,152 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
                                          sermon_filename = sermon_filename,
                                          std_text = std_text,
                                          is_valid = is_valid,
+                                         AVAIL_AUDIO_EXT = AVAIL_AUDIO_EXT)) %>%
+    do.call(bind_rows, .)
+  
+  
+  ## Write metadata data.frame as a .csv file
+  write.csv(x = metadf, file = filename, row.names = TRUE)
+  
+  return(metadf)
+}
+
+
+
+#' Retrieve sermon metadata from hillside.org
+#' 
+#' @param subtitle_pattern Character value of pattern to match in subtitle.
+#' @param filename Target directory to save metadata data.frame as a .csv file.
+#' @param n_cores Numeric value specifying number of cores.
+#' @return None.
+
+hillside_org <- function(subtitle_pattern = "Chris Gee",
+                         filename = file.path(getwd(), "catalog", sprintf("hillside_org.csv")),
+                         n_cores = 1){
+  
+  require(dplyr)
+  
+  
+  ## Create folder if needed
+  folder <- dirname(filename)
+  
+  if (!dir.exists(folder)){
+    
+    dir.create(folder)
+  }
+  
+  ## Retrieve URL domain
+  link <- "https://subsplash.com/+62a6/media?page=%g"
+  
+  
+  ## Loop through pages and compile all title links on page(s), starting with page i=1
+  cli::cli_alert_info("retrieving links to all titles")
+  
+  i <- 1
+  title_links <- c()
+  
+  repeat({
+    
+    cli::cli_alert("reading page {i}", .envir = environment())
+    
+    ## Retrieve links to each sermon title from HTML elements
+    title_linksi <- rvest::read_html(gsub("page=%g|page=%s", sprintf("page=%g", i), link)) %>%
+      rvest::html_elements(css = ".app-list-content") %>%
+      rvest::html_children()
+    
+    ## Exit if empty page
+    if (length(title_linksi) == 0){
+      
+      cli::cli_alert("page {i} is empty", .envir = environment())
+      
+      break
+    }
+    
+    ## Subset to links with subtitle text matching pattern and extract URLs
+    title_linksi <- title_linksi %>%
+      `[`(grepl(subtitle_pattern, sapply(., function(x){
+        x %>% rvest::html_elements(".kit-list-item__subtitle") %>% rvest::html_text()
+      }))) %>%
+      rvest::html_elements("a") %>%
+      rvest::html_attr("href") %>%
+      `[`(grepl("subsplash", .))
+    
+    ## Add to title_links
+    title_links <- c(title_links, title_linksi)
+    
+    i <- i + 1
+  })
+  
+  
+  ## TODO: check for and skip duplicate titles
+  
+  
+  ## Retrieve metadata for each title
+  cli::cli_alert_info("retrieving metadata for {length(title_links)} titles", 
+                      .envir = environment())
+  
+  ## Define function to retrieve metadata for sermon
+  metadata_fn <- function(x){
+    
+    require(dplyr)
+    
+    ## Read page from link
+    linkx <- title_links[x]
+    pagex <- rvest::read_html(linkx)
+    
+    ## Extract element that contains "audio"
+    parsed_data <- pagex %>% rvest::html_element(xpath = "//*[contains(text(), 'audio')]") %>% rvest::html_text() %>%
+      ## Remove escape characters
+      gsub("\\\\", "", .) %>%
+      ## Extract JSON data and convert
+      regmatches(., regexpr("\\{\"data\":\\{.*\\}\\}", .)) %>%
+      jsonlite::fromJSON(.) %>%
+      `$`(data)
+    
+    title <- gsub("u0026", "&", parsed_data$title)
+    
+    cli::cli_alert("reading {x}. {title}", .envir = environment())
+    
+    ## Assemble metadata
+    metadatax <- data.frame(
+      Title = title,
+      Teacher = parsed_data$speaker, 
+      Text = paste(sapply(parsed_data$scriptures, simplify_range), collapse = "; "),
+      Ministry = parsed_data$`_embedded`$`media-series`$title,
+      ## Extract topics
+      Topics = parsed_data$tags %>% 
+        `[`(grepl("topic:", .)) %>% 
+        gsub("topic:", "", .) %>% 
+        paste(collapse = "; "),
+      Date = as.Date(parsed_data$date, format = "%Y-%m-%dT%H:%M:%SZ"),
+      Source = "www.hillside.org",
+      Page = linkx,
+      Audio = parsed_data$`_embedded`$audio$`_embedded`$`audio-outputs`$`_links`$related$href,
+      Files = parsed_data$`_embedded`$document$`_links`$related %>%
+        c(unlist(parsed_data[grepl("o-hySVW-k0", parsed_data)])) %>%
+        paste(collapse = "; ")
+    ) %>%
+      mutate(Name = sermon_filename(
+        title = Title,
+        text = ifelse(grepl("; ", Text) | length(Text) == 0, "Selected Scriptures",
+                      simplify_range(Text)),
+        teacher = Teacher,
+        date = Date
+      ))
+    return(metadatax)
+  }
+  
+  ## Execute retrieving and compile in table
+  metadf <- switch_lapply(n_cores = n_cores,
+                          X = seq_len(length(title_links)),
+                          FUN = metadata_fn,
+                          outfolder = file.path(dirname(dirname(filename)), "logs"),
+                          varlist = list(title_links = title_links,
+                                         sermon_filename = sermon_filename,
+                                         std_text = std_text,
+                                         is_valid = is_valid,
+                                         simplify_range = simplify_range,
+                                         get_common_pre = get_common_pre,
                                          AVAIL_AUDIO_EXT = AVAIL_AUDIO_EXT)) %>%
     do.call(bind_rows, .)
   

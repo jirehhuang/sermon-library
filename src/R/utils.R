@@ -52,14 +52,61 @@ std_text <- function(x,
     
     x <- iconv(x, to = "ASCII//TRANSLIT")
     x <- gsub(": ", "_", x)
-    x <- gsub(":", "_", x)
+    x <- gsub(":|\\.", "_", x)
     x <- gsub("[\\/\\:*?\"<>|]", "_", x)
+    x <- gsub("\\&", "_", x)
+    
+    while(grepl("  ", x)){
+      
+      x <- gsub("  ", " ", x)
+    }
   }
   if (nchar(add_suffix)){
     
     x <- sprintf("%s%s", x, add_suffix)
   }
   return(x)
+}
+
+
+
+#' Extract the common beginning of two strings, if any
+
+get_common_pre <- function(char1, char2){
+  
+  s1 <- substring(char1, 1, seq_len(nchar(char1)))
+  s2 <- substring(char2, 1, seq_len(nchar(char2)))
+  
+  if (length(w <- which(s1 %in% s2))){
+    s2[max(w)]
+  } else {
+    character(1)
+  }
+}
+
+
+
+#' Simplify text that has a range
+
+simplify_range <- function(text){
+  
+  if (is.null(text) || is.na(text) || nchar(text) == 0 || !grepl("-", text)){
+    
+    return(text)
+  }
+  
+  ## Remove spaces adjacent to dash
+  while(grepl(" -|- ", text)){
+    
+    text <- gsub(" -|- ", "-", text)
+  }
+  split_text <- strsplit(text, "-")[[1]]
+  
+  ## Get common beginning
+  common_pre <- do.call(get_common_pre, as.list(split_text))
+  
+  ## Stitch back together in the form of {common_pre}{unique_lower}-{uniquer_upper}
+  paste0(common_pre, paste(gsub(common_pre, "", split_text), collapse = "-"))
 }
 
 
