@@ -354,6 +354,7 @@ hillside_org <- function(subtitle_pattern = "Chris Gee",
         teacher = Teacher,
         date = Date
       ))
+    
     return(metadatax)
   }
   
@@ -368,6 +369,191 @@ hillside_org <- function(subtitle_pattern = "Chris Gee",
                                          is_valid = is_valid,
                                          simplify_range = simplify_range,
                                          get_common_pre = get_common_pre,
+                                         AVAIL_AUDIO_EXT = AVAIL_AUDIO_EXT)) %>%
+    do.call(bind_rows, .)
+  
+  
+  ## Write metadata data.frame as a .csv file
+  write.csv(x = metadf, file = filename, row.names = TRUE)
+  
+  return(metadf)
+}
+
+
+
+#' Retrieve sermon metadata from citylightbible.org
+#' 
+#' @param link Character value specifying link with search list of to scrape.
+#' @param filename Target directory to save metadata data.frame as a .csv file.
+#' @param n_cores Numeric value specifying number of cores.
+#' @return None.
+
+citylightbible_org <- function(link = "https://subsplash.com/+fvkd/search?q=chris%20gee",
+                               filename = file.path(getwd(), "catalog", sprintf("citylightbible_org.csv")),
+                               n_cores = 1){
+  
+  require(dplyr)
+  
+  
+  ## Create folder if needed
+  folder <- dirname(filename)
+  
+  if (!dir.exists(folder)){
+    
+    dir.create(folder)
+  }
+  
+  ## Check link
+  if (!grepl("subsplash.com/\\+fvkd", link)){
+    
+    cli::cli_abort("link must begin with `subsplash.com/\\+fvkd`")
+  }
+  
+  ## Retrieve URL domain
+  link0 <- sprintf("https://%s", urltools::domain(link))
+  
+  ## Generalize link to allow for multiple pages
+  if (!grepl("page=", link)){
+    
+    link <- sprintf("%s%spage=%s", 
+                    link, 
+                    ifelse(grepl("\\?", link), "&", "?"),
+                    "%g")
+    
+  } else if (!grepl("page=%g|page=%s", link)){
+    
+    ## If page= exists but as a number, replace page=1 (for example) with page=%g
+    link <- gsub("page=\\d+", "page=%g", link)
+  }
+  
+  
+  ## Loop through pages and compile all title links on page(s), starting with page i=1
+  cli::cli_alert_info("retrieving links to all titles")
+  
+  i <- 1
+  title_links <- c()
+  
+  repeat({
+    
+    cli::cli_alert("reading page {i}", .envir = environment())
+    
+    ## Retrieve links to each sermon title from HTML elements
+    title_linksi <- rvest::read_html(gsub("page=%g|page=%s", sprintf("page=%g", i), link)) %>%
+      rvest::html_elements(css = ".app-list-content") %>%
+      rvest::html_children() %>%
+      rvest::html_elements("a") %>%
+      rvest::html_attr("href")
+    
+    ## Exit if empty page
+    if (length(title_linksi) == 0){
+      
+      cli::cli_alert("page {i} is empty", .envir = environment())
+      
+      break
+    }
+    
+    ## Add to title_links
+    title_links <- c(title_links, title_linksi)
+    
+    i <- i + 1
+  })
+  
+  ## If retrieved links to titles, prepend URL domain
+  if (length(title_links)){
+    
+    title_links <- paste0(link0, unique(title_links))
+    
+    ## Otherwise if empty, assume original link is itself a title link
+  } else{
+    
+    title_links <- link
+  }
+  
+  
+  ## TODO: check for and skip duplicate titles
+  
+  
+  ## Retrieve metadata for each title
+  cli::cli_alert_info("retrieving metadata for {length(title_links)} titles", 
+                      .envir = environment())
+  
+  ## Define function to retrieve metadata for sermon
+  metadata_fn <- function(x){
+    
+    require(dplyr)
+    
+    ## Read page from link
+    linkx <- title_links[x]
+    pagex <- rvest::read_html(linkx)
+    
+    ## Retrieve title
+    title <- pagex %>%
+      rvest::html_element('meta[property="og:title"]') %>%
+      rvest::html_attr("content")
+    
+    cli::cli_alert("reading {x}. {title}", .envir = environment())
+    
+    split_subtitle <- pagex %>%
+      ## Get and clean subtitle
+      rvest::html_element('div[class="u__mt--m"]') %>%
+      rvest::html_text() %>%
+      gsub("\\n", "", .) %>%
+      trimws() %>%
+      ## Split subtitle by separator into 
+      iconv(to = "ASCII//TRANSLIT") %>%
+      gsub(" \\. ", "___", .) %>%
+      strsplit(split = "___") %>%
+      `[[`(1) %>%
+      trimws()
+    
+    ## Convert to a data.frame object
+    metadatax <- c(title, split_subtitle) %>%
+      matrix(nrow = 1) %>%
+      as.data.frame()
+    names(metadatax) <- c("Title", c("Date", "Teacher", "Text")[seq_len(length(split_subtitle))])
+    
+    ## If Text is missing
+    if (is.null(metadatax$Text)){
+      
+      metadatax$Text <- "Selected Scriptures"
+    }
+    ## Check for e.g. Genesis 1:1-2, 4
+    if (grepl(", \\d", metadatax$Text)){
+  
+      ## TODO: Pay attention when replacing , with ;    
+      browser()
+    }
+    
+    ## Add additional metadata
+    metadatax <- metadatax %>%
+      mutate_all(iconv, to = "ASCII//TRANSLIT") %>%
+      mutate(Text = gsub(", ", "; ", Text),
+             Description = pagex %>%
+               rvest::html_element('meta[property="og:description"]') %>%
+               rvest::html_attr("content"),
+             Source = "www.citylightbible.org",
+             Date = as.Date(Date, format = "%B %d, %Y"),
+             Page = linkx,
+             Audio = pagex %>%
+               rvest::html_element("source") %>%
+               rvest::html_attr("src")) %>%
+      mutate(Name = sermon_filename(title = Title,
+                                    text = Text,
+                                    teacher = Teacher,
+                                    date = Date))
+    
+    return(metadatax)
+  }
+  
+  ## Execute retrieving and compile in table
+  metadf <- switch_lapply(n_cores = n_cores,
+                          X = seq_len(length(title_links)),
+                          FUN = metadata_fn,
+                          outfolder = file.path(dirname(dirname(filename)), "logs"),
+                          varlist = list(title_links = title_links,
+                                         sermon_filename = sermon_filename,
+                                         std_text = std_text,
+                                         is_valid = is_valid,
                                          AVAIL_AUDIO_EXT = AVAIL_AUDIO_EXT)) %>%
     do.call(bind_rows, .)
   
