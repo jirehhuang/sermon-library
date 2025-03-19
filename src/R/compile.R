@@ -1,9 +1,6 @@
 #' Get all retrieved sermon metadata 
 
-compile_catalog <- function(catalog_dir = file.path(getwd(), "catalog")){
-  
-  ## Load necessary package(s)
-  require(dplyr)
+compile_metadata <- function(catalog_dir = file.path(getwd(), "catalog")){
   
   ## Compile various sermon metadata tables
   csv_files <- list.files(catalog_dir, pattern = "\\.csv", full.names = TRUE)

@@ -19,7 +19,7 @@ download_sermons <- function(catalog_dir = file.path(getwd(), "catalog"),
   
   cli::cli_alert("downloading sermons from `{catalog_dir}` to `{sermons_dir}`", .envir = environment())
   
-  metadf <- compile_catalog(catalog_dir = catalog_dir)
+  metadf <- compile_metadata(catalog_dir = catalog_dir)
   
   ## Download sermons to sermon directory one by one
   cli::cli_alert_info("downloading files for {nrow(metadf)} titles", 
