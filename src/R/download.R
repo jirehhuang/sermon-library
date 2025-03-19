@@ -9,10 +9,15 @@
 #' @example
 
 download_sermons <- function(catalog_dir = file.path(getwd(), "catalog"),
-                             sermons_dir = file.path(getwd(), "sermons"),
+                             sermons_dir = "browse",
                              bool_continue = TRUE,
                              bool_compress = FALSE,
                              n_cores = 1){
+  
+  catalog_dir <- switch_choose_dir(catalog_dir, "Select Catalog Directory")
+  sermons_dir <- switch_choose_dir(sermons_dir, "Select Sermon Directory")
+  
+  cli::cli_alert("downloading sermons from `{catalog_dir}` to `{sermons_dir}`", .envir = environment())
   
   metadf <- compile_catalog(catalog_dir = catalog_dir)
   
