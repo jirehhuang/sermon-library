@@ -13,10 +13,10 @@ sermon_filename <- function(title,
                             bool_lower = FALSE){
   
   sprintf("%s%s%s%s",
-          std_text(date, " - ", bool_lower),
-          std_text(text, " - ", bool_lower),
-          std_text(title, " - ", bool_lower),
-          std_text(teacher, "", bool_lower))
+          std_text(date, replacement = "_", add_suffix = " - ", bool_lower = bool_lower),
+          std_text(text, replacement = "_", add_suffix = " - ", bool_lower = bool_lower),
+          std_text(title, replacement = "_", add_suffix = " - ", bool_lower = bool_lower),
+          std_text(teacher, replacement = "_", add_suffix = "", bool_lower = bool_lower))
 }
 
 
@@ -33,6 +33,7 @@ is_valid <- function(x){
 #' Standardize text
 
 std_text <- function(x,
+                     replacement = "_",
                      add_suffix = "",
                      bool_lower = FALSE){
   
@@ -46,15 +47,16 @@ std_text <- function(x,
     
   } else if (bool_lower){
     
-    x <- trimws(str_sanitize(gsub("'|\\&", "", x),
-                             sep = "-"), whitespace = "-")
+    ## TODO: not implemented
+    browser()
+    
   } else{
     
     x <- iconv(x, to = "ASCII//TRANSLIT")
-    x <- gsub(": ", "_", x)
-    x <- gsub(":|\\.", "_", x)
-    x <- gsub("[\\/\\:*?\"<>|]", "_", x)
-    x <- gsub("\\&", "_", x)
+    x <- gsub(": ", replacement, x)
+    x <- gsub(":|\\.", replacement, x)
+    x <- gsub("[\\/\\:*?\"<>|]", replacement, x)
+    x <- gsub("\\&", replacement, x)
     
     while(grepl("  ", x)){
       
