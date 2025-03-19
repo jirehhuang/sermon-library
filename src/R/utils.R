@@ -4,6 +4,20 @@
 
 
 
+#' Choose directory
+
+switch_choose_dir <- function(dir = "browse", caption = "") {
+  
+  if (identical(dir, choose.dir) || 
+      dir %in% c("browse", "choose", "choose.dir")){
+    
+    dir <- choose.dir(default = file.path(default = getwd()), caption = caption)
+  }
+  return(dir)
+}
+
+
+
 #' Simple function to compile sermon filename
 
 sermon_filename <- function(title,
