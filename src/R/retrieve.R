@@ -316,7 +316,9 @@ hillside_org <- function(subtitle_pattern = "Chris Gee",
     pagex <- rvest::read_html(linkx)
     
     ## Extract element that contains "audio"
-    parsed_data <- pagex %>% rvest::html_element(xpath = "//*[contains(text(), 'audio')]") %>% rvest::html_text() %>%
+    parsed_data <- pagex %>% 
+      rvest::html_element(xpath = "//*[contains(text(), 'audio')]") %>% 
+      rvest::html_text() %>%
       ## Remove escape characters
       gsub("\\\\", "", .) %>%
       ## Extract JSON data and convert
@@ -329,24 +331,23 @@ hillside_org <- function(subtitle_pattern = "Chris Gee",
     cli::cli_alert("reading {x}. {title}", .envir = environment())
     
     ## Assemble metadata
-    metadatax <- data.frame(
-      Title = title,
-      Teacher = parsed_data$speaker, 
-      Text = paste(sapply(parsed_data$scriptures, simplify_range), collapse = "; "),
-      Ministry = parsed_data$`_embedded`$`media-series`$title,
-      ## Extract topics
-      Topics = parsed_data$tags %>% 
-        `[`(grepl("topic:", .)) %>% 
-        gsub("topic:", "", .) %>% 
-        paste(collapse = "; "),
-      Date = as.Date(parsed_data$date, format = "%Y-%m-%dT%H:%M:%SZ"),
-      Source = "www.hillside.org",
-      Page = linkx,
-      Audio = parsed_data$`_embedded`$audio$`_embedded`$`audio-outputs`$`_links`$related$href,
-      Files = parsed_data$`_embedded`$document$`_links`$related %>%
-        c(unlist(parsed_data[grepl("o-hySVW-k0", parsed_data)])) %>%
-        paste(collapse = "; ")
-    ) %>%
+    metadatax <- data.frame(Title = title) %>% 
+      mutate(Teacher = parsed_data$speaker, 
+             Text = paste(sapply(parsed_data$scriptures, simplify_range), collapse = "; "),
+             Ministry = parsed_data$`_embedded`$`media-series`$title,
+             ## Extract topics
+             Topics = parsed_data$tags %>% 
+               `[`(grepl("topic:", .)) %>% 
+               gsub("topic:", "", .) %>% 
+               paste(collapse = "; "),
+             Date = as.Date(parsed_data$date, format = "%Y-%m-%dT%H:%M:%SZ"),
+             Source = "www.hillside.org",
+             Page = linkx,
+             Audio = parsed_data$`_embedded`$audio$`_embedded`$`audio-outputs`$`_links`$related$href,
+             Files = parsed_data$`_embedded`$document$`_links`$related %>%
+               c(unlist(parsed_data[grepl("o-hySVW-k0", parsed_data)])) %>%
+               paste(collapse = "; ")
+      ) %>%
       mutate(Name = sermon_filename(
         title = Title,
         text = ifelse(grepl("; ", Text) | length(Text) == 0, "Selected Scriptures",
@@ -458,16 +459,17 @@ citylightbible_org <- function(link = "https://subsplash.com/+fvkd/search?q=chri
     i <- i + 1
   })
   
-  ## If retrieved links to titles, prepend URL domain
-  if (length(title_links)){
-    
-    title_links <- paste0(link0, unique(title_links))
-    
-    ## Otherwise if empty, assume original link is itself a title link
-  } else{
-    
-    title_links <- link
-  }
+  ## Extract title codes
+  title_codes <- title_links %>%
+    ## To the right of /mi/+
+    strsplit(split = "/mi/\\+") %>%
+    sapply(FUN = `[`, -1) %>%
+    ## To the left of ?
+    strsplit(split = "\\?") %>%
+    sapply(FUN = `[`, 1)
+  
+  ## Use different form of title links
+  title_links <- sprintf("https://subsplash.com/u/citylightbiblechurch/media/d/%s", title_codes)
   
   
   ## TODO: check for and skip duplicate titles
@@ -486,61 +488,46 @@ citylightbible_org <- function(link = "https://subsplash.com/+fvkd/search?q=chri
     linkx <- title_links[x]
     pagex <- rvest::read_html(linkx)
     
-    ## Retrieve title
-    title <- pagex %>%
-      rvest::html_element('meta[property="og:title"]') %>%
-      rvest::html_attr("content")
+    ## Extract element that contains "audio"
+    parsed_data <- pagex %>% 
+      rvest::html_element(xpath = "//*[contains(text(), 'audio')]") %>% 
+      rvest::html_text() %>%
+      ## Remove escape characters
+      gsub("\\\\", "", .) %>%
+      ## Extract JSON data and convert
+      regmatches(., regexpr("\\{\"data\":\\{.*\\}\\}", .)) %>%
+      jsonlite::fromJSON(.) %>%
+      `$`(data)
+    
+    title <- gsub("u0026", "&", parsed_data$title)
     
     cli::cli_alert("reading {x}. {title}", .envir = environment())
     
-    split_subtitle <- pagex %>%
-      ## Get and clean subtitle
-      rvest::html_element('div[class="u__mt--m"]') %>%
-      rvest::html_text() %>%
-      gsub("\\n", "", .) %>%
-      trimws() %>%
-      ## Split subtitle by separator into 
-      iconv(to = "ASCII//TRANSLIT") %>%
-      gsub(" \\. ", "___", .) %>%
-      strsplit(split = "___") %>%
-      `[[`(1) %>%
-      trimws()
-    
-    ## Convert to a data.frame object
-    metadatax <- c(title, split_subtitle) %>%
-      matrix(nrow = 1) %>%
-      as.data.frame()
-    names(metadatax) <- c("Title", c("Date", "Teacher", "Text")[seq_len(length(split_subtitle))])
-    
-    ## If Text is missing
-    if (is.null(metadatax$Text)){
-      
-      metadatax$Text <- "Selected Scriptures"
-    }
-    ## Check for e.g. Genesis 1:1-2, 4
-    if (grepl(", \\d", metadatax$Text)){
-  
-      ## TODO: Pay attention when replacing , with ;    
-      browser()
-    }
-    
-    ## Add additional metadata
-    metadatax <- metadatax %>%
-      mutate_all(iconv, to = "ASCII//TRANSLIT") %>%
-      mutate(Text = gsub(", ", "; ", Text),
-             Description = pagex %>%
-               rvest::html_element('meta[property="og:description"]') %>%
-               rvest::html_attr("content"),
+    ## Assemble metadata
+    metadatax <- data.frame(Title = title) %>%
+      mutate(Teacher = parsed_data$speaker, 
+             Text = paste(sapply(parsed_data$scriptures, simplify_range), collapse = "; "),
+             Description = parsed_data$summary_text,
+             Series = gsub("u0026", "&", parsed_data$`_embedded`$`media-series`$title),
+             ## Extract topics
+             Topics = parsed_data$tags %>% 
+               `[`(grepl("topic:", .)) %>% 
+               gsub("topic:", "", .) %>% 
+               paste(collapse = "; "),
+             Date = as.Date(parsed_data$date, format = "%Y-%m-%dT%H:%M:%SZ"),
              Source = "www.citylightbible.org",
-             Date = as.Date(Date, format = "%B %d, %Y"),
              Page = linkx,
-             Audio = pagex %>%
-               rvest::html_element("source") %>%
-               rvest::html_attr("src")) %>%
-      mutate(Name = sermon_filename(title = Title,
-                                    text = Text,
-                                    teacher = Teacher,
-                                    date = Date))
+             Audio = parsed_data$`_embedded`$audio$`_embedded`$`audio-outputs`$`_links`$related$href,
+             Files = parsed_data$`_embedded`$document$`_links`$related %>%
+               c(unlist(parsed_data[grepl("o-hySVW-k0", parsed_data)])) %>%
+               paste(collapse = "; ")) %>%
+      mutate(Name = sermon_filename(
+        title = Title,
+        text = ifelse(grepl("; ", Text) | length(Text) == 0, "Selected Scriptures",
+                      simplify_range(Text)),
+        teacher = Teacher,
+        date = Date
+      ))
     
     return(metadatax)
   }
