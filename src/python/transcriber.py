@@ -180,7 +180,7 @@ def get_dir(default_dir: str="browse", label: str="", timeout: int=10, bool_msg:
     else:
         default_msg = ""  # Deactivate showing default
     if len(label) > 0:
-        label = label + " "
+        label = label.strip() + " "
     try:
         dir = inputimeout(prompt=f"Enter {label}directory{default_msg}: ", timeout=timeout).strip() or default_dir
     except TimeoutOccurred:
