@@ -210,7 +210,7 @@ gracechurch_org <- function(link = "https://www.gracechurch.org/sermons/16026",
   
   
   ## Write metadata data.frame as a .csv file
-  write.csv(x = metadf, file = filename, row.names = TRUE)
+  write.csv(x = metadf, file = filename, row.names = FALSE)
   
   return(metadf)
 }
@@ -358,7 +358,7 @@ hillside_org <- function(subtitle_pattern = "Chris Gee",
   
   
   ## Write metadata data.frame as a .csv file
-  write.csv(x = metadf, file = filename, row.names = TRUE)
+  write.csv(x = metadf, file = filename, row.names = FALSE)
   
   return(metadf)
 }
@@ -529,7 +529,7 @@ citylightbible_org <- function(link = "https://subsplash.com/+fvkd/search?q=chri
   
   
   ## Write metadata data.frame as a .csv file
-  write.csv(x = metadf, file = filename, row.names = TRUE)
+  write.csv(x = metadf, file = filename, row.names = FALSE)
   
   return(metadf)
 }
